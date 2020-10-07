@@ -1,15 +1,6 @@
 FROM debian:buster-slim 
 
 ARG BUILD_SRC="/usr/local/src"
-ARG JANUS_CONFIG_OPTIONS="\
-        --prefix=/opt/janus \ 
-        --disable-rabbitmq \
-        --disable-mqtt \
-        --enable-post-processing \
-        --enable-openssl \
-        --disable-unix-sockets \
-        --disable-aes-gcm \
-    "
 
 RUN apt-get update -y \
     && apt-get upgrade -y
@@ -68,6 +59,20 @@ RUN apt-get install -y python3 python3-pip python3-setuptools python3-wheel ninj
 	&& cd ${BUILD_SRC}/libnice \
 	&& meson --prefix=/usr build && ninja -C build && ninja -C build install
 
+RUN apt-get install nginx -y
+COPY nginx/nginx.conf /etc/nginx/nginx.conf
+COPY nginx/certs /etc/nginx/certs
+
+ARG JANUS_CONFIG_OPTIONS="\
+        --prefix=/opt/janus \ 
+        --disable-rabbitmq \
+        --disable-mqtt \
+        --enable-post-processing \
+        --enable-openssl \
+        --disable-unix-sockets \
+        --disable-aes-gcm \
+    "
+
 RUN git clone https://github.com/meetecho/janus-gateway.git ${BUILD_SRC}/janus-gateway \
     && cd ${BUILD_SRC}/janus-gateway \
     && ./autogen.sh \
@@ -75,10 +80,6 @@ RUN git clone https://github.com/meetecho/janus-gateway.git ${BUILD_SRC}/janus-g
     && make && make CFLAGS='-std=c99' && make install && make clean
 
 COPY conf/*.cfg /opt/janus/etc/janus/
-
-RUN apt-get install nginx -y
-COPY nginx/nginx.conf /etc/nginx/nginx.conf
-COPY nginx/certs /etc/nginx/certs
 
 EXPOSE 80 443 7088 8088 8188 8089
 CMD service nginx restart && /opt/janus/bin/janus --nat-1-1=${DOCKER_IP}
